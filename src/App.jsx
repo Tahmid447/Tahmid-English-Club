@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { auth } from "./firebase";
 import { 
   BookOpen, Star, Award, User, LogOut, Volume2, 
   CheckCircle, XCircle, ArrowRight, Edit3, Trash2, Plus, 
@@ -8,7 +10,6 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
-
 // --- 1. CONFIGURATION & MOCK DATA ---
 
 // 初期データ
@@ -43,7 +44,6 @@ const INITIAL_DATA = {
     }
   ],
   users: [
-    { id: 'Teacher', name: 'Tahamid Teacher', role: 'teacher', pass: '1111', age: 30 },
     { id: 'haru', name: 'Haru', role: 'student', gender: 'girl', pass: 'haru123', age: 10 },
     { id: 'kan', name: 'Kansuke', role: 'student', gender: 'boy', pass: 'kan123', age: 8 },
     { id: 'sasa', name: 'Sasa', role: 'student', gender: 'boy', pass: 'sasa123', age: 9 },
@@ -164,15 +164,53 @@ const LoginScreen = ({ onLogin }) => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
+    setError("");
     setLoading(true);
-    setTimeout(() => {
-      const users = LocalDB.get('users');
-      const user = users.find(u => u.id.toLowerCase() === id.toLowerCase() && u.pass === pass);
-      if (user) { playSound('success'); onLogin(user); } 
-      else { playSound('wrong'); setError('ID または パスワード がちがいます'); setLoading(false); }
-    }, 800);
+  
+    try {
+      // If ID contains "@", treat it as teacher email login (Firebase)
+      if (id.includes("@")) {
+        const cred = await signInWithEmailAndPassword(auth, id, pass);
+      
+        // ✅ only allow YOUR email as teacher
+        if (cred.user.email !== "tahmidhc245@gmail.com") {
+          throw new Error("Not authorized");
+        }
+      
+        playSound("success");
+      
+        onLogin({
+          id: "Teacher",
+          name: "Tahamid Teacher",
+          role: "teacher",
+          email: cred.user.email,
+        });
+      
+        setLoading(false);
+        return;
+      }
+  
+      // Otherwise, keep your existing student login (LocalDB)
+      const users = LocalDB.get("users");
+      const user = users.find(
+        (u) => u.id.toLowerCase() === id.toLowerCase() && u.pass === pass
+      );
+  
+      if (user) {
+        playSound("success");
+        onLogin(user);
+      } else {
+        playSound("wrong");
+        setError("ID または パスワード がちがいます");
+        setLoading(false);
+      }
+    } catch (err) {
+      playSound("wrong");
+      setError("Firebase login failed (email/password wrong)");
+      setLoading(false);
+    }
   };
 
   return (
@@ -759,5 +797,9 @@ export default function App() {
 
   if (loading) return <div className="min-h-screen flex items-center justify-center"><div className="w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full animate-spin"/></div>;
   if (!currentUser) return <LoginScreen onLogin={login} />;
-  return currentUser.role === 'teacher' ? <TeacherDashboard user={currentUser} onLogout={logout} /> : <StudentDashboard user={currentUser} onLogout={logout} />;
-}
+  const isTeacher =
+  currentUser?.role === "teacher" && currentUser?.email === TEACHER_EMAIL;
+
+return isTeacher
+  ? <TeacherDashboard user={currentUser} onLogout={logout} />
+  : <StudentDashboard user={currentUser} onLogout={logout} />;}

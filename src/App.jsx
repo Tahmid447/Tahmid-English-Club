@@ -10,6 +10,9 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
+
+// Teacher account email (used both for Firebase login check and dashboard routing)
+const TEACHER_EMAIL = "tahmidhc245@gmail.com";
 // --- 1. CONFIGURATION & MOCK DATA ---
 
 // 初期データ
